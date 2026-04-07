@@ -4,14 +4,14 @@ plugins {
 }
 
 android {
-    namespace = "com.example.a9activity"
+    namespace = "com.example.a10activity"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.a9activity"
-        minSdk = 23
+        applicationId = "com.example.a10activity"
+        minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
