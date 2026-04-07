@@ -1,3 +1,8 @@
+import kotlin.io.*
+
 fun main() {
-    println("Hello World")
+    val x = 42
+    val y = 2
+    val result = x / y
+    println("The result of $x divided by $y is: $result")
 }
