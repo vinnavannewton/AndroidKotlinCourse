@@ -24,5 +24,12 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.stock.ui.MainKt"
+        jvmArgs += listOf(
+            "-Xms64m",          // Start with 64MB heap
+            "-Xmx256m",         // Cap at 256MB heap (was unbounded)
+            "-XX:+UseG1GC",     // G1 GC — good balance of throughput and low pause
+            "-XX:MaxGCPauseMillis=50", // Keep GC pauses under 50ms for UI responsiveness
+            "-XX:+UseStringDeduplication", // Deduplicate identical strings in heap
+        )
     }
 }

@@ -1,17 +1,16 @@
 package com.stock.backend;
 
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Stock {
-    private String symbol;
-    private String name;
-    private String sector;
-    private double price;
-    private double previousPrice;
-    private double openPrice;
-    private double dayHigh;
-    private double dayLow;
-    private Random random;
+    private final String symbol;
+    private final String name;
+    private final String sector;
+    private volatile double price;
+    private volatile double previousPrice;
+    private final double openPrice;
+    private volatile double dayHigh;
+    private volatile double dayLow;
 
     public Stock(String symbol, String name, String sector, double initialPrice) {
         this.symbol = symbol;
@@ -22,7 +21,6 @@ public class Stock {
         this.openPrice = initialPrice;
         this.dayHigh = initialPrice;
         this.dayLow = initialPrice;
-        this.random = new Random();
     }
 
     public String getSymbol() {
@@ -69,7 +67,7 @@ public class Stock {
 
     public void updatePrice() {
         this.previousPrice = this.price;
-        double changePercent = (random.nextDouble() * 0.04) - 0.02;
+        double changePercent = (ThreadLocalRandom.current().nextDouble() * 0.04) - 0.02;
         this.price += this.price * changePercent;
         if (this.price < 0.01)
             this.price = 0.01;
