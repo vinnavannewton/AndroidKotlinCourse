@@ -4,12 +4,14 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +36,7 @@ import java.util.Date
 val Bg            = Color(0xFF000000)
 val Card          = Color(0xFF1C1C1E)
 val CardHover     = Color(0xFF2C2C2E)
+val CardElevated  = Color(0xFF3A3A3C)
 val Green         = Color(0xFF30D158)
 val Red           = Color(0xFFFF453A)
 val Blue          = Color(0xFF0A84FF)
@@ -45,17 +48,14 @@ val White         = Color(0xFFFFFFFF)
 val Gray1         = Color(0xFF8E8E93)
 val Gray2         = Color(0xFF636366)
 val Gray3         = Color(0xFF48484A)
+val Gray4         = Color(0xFF38383A)
 val Divider       = Color(0xFF2C2C2E)
 
-// Shared formatters — created once, reused everywhere
-private val money = DecimalFormat("#,##0.00")
-private val pct   = DecimalFormat("0.00")
-
-// Cached date formatter — avoid creating per-row
-private val timeFmt = SimpleDateFormat("HH:mm:ss")
+val money = DecimalFormat("#,##0.00")
+val pct   = DecimalFormat("0.00")
 
 // Sector colors
-private val sectorColors = mapOf(
+val sectorColors = mapOf(
     "Technology" to Blue,
     "Automotive" to Orange,
     "Finance"    to Green,
@@ -66,31 +66,65 @@ private val sectorColors = mapOf(
 
 fun main() = application {
     val market = remember { Market() }
-    val user   = remember { mutableStateOf(DataStore.load(1000000.0)) }
+    val user   = remember { DataStore.load(1000000.0) }
 
-    // Consolidated state — use a single data class to batch updates
-    var uiState by remember { mutableStateOf(UiState.from(user.value, market)) }
+    var balance      by remember { mutableStateOf(user.balance) }
+    var portfolio    by remember { mutableStateOf(user.portfolio.toMap()) }
+    var avgPrices    by remember { mutableStateOf(user.avgBuyPrice.toMap()) }
+    var transactions by remember { mutableStateOf(user.transactions.toList()) }
+    var watchlist    by remember { mutableStateOf(user.watchlist.toList()) }
+    var tick         by remember { mutableStateOf(0L) }
+    var prices       by remember { mutableStateOf(market.stocks.associate { it.symbol to it.price }) }
+    var netWorth     by remember { mutableStateOf(1000000.0) }
+    var totalPnL     by remember { mutableStateOf(0.0) }
 
     DisposableEffect(Unit) {
         market.setOnUpdateCallback {
-            // Single state update triggers one recomposition, not 8 separate ones
-            uiState = UiState.from(user.value, market)
+            tick++
+            prices       = market.stocks.associate { it.symbol to it.price }
+            balance      = user.balance
+            portfolio    = user.portfolio.toMap()
+            avgPrices    = user.avgBuyPrice.toMap()
+            transactions = user.transactions.toList()
+            watchlist    = user.watchlist.toList()
+            netWorth     = user.getNetWorth(market)
+            totalPnL     = user.getTotalProfitLoss(market)
         }
         market.startSimulation()
         onDispose { market.stopSimulation() }
     }
 
-    val sync: () -> Unit = {
-        DataStore.save(user.value)
-        uiState = UiState.from(user.value, market)
+    val sync = {
+        DataStore.save(user)  // <--- Auto-save here
+        balance      = user.balance
+        portfolio    = user.portfolio.toMap()
+        avgPrices    = user.avgBuyPrice.toMap()
+        transactions = user.transactions.toList()
+        watchlist    = user.watchlist.toList()
+        netWorth     = user.getNetWorth(market)
+        totalPnL     = user.getTotalProfitLoss(market)
     }
-
-    val onReset: () -> Unit = {
+    
+    // Reset function
+    val onReset = {
         DataStore.reset()
-        val freshUser = User(1000000.0)
-        user.value = freshUser
-        DataStore.save(freshUser)
-        uiState = UiState.from(freshUser, market)
+        // Manually reset user state
+        val fresh = User(1000000.0)
+        // We can't easily replace the 'user' val reference, so we'll just reload
+        // Actually, since 'user' is a val, we can't reassign it. 
+        // But we can mutate it if we add a reset method, OR we just cheat and exit the app? 
+        // Better: Make 'user' a MutableState or just restart the app logic.
+        // Simplest for now: clear the internal maps of the existing user object
+        // But User fields are private. 
+        // Let's just create a new User and rely on the UI state variables, 
+        // assuming we don't need to propagate the new User object to children 
+        // (we currently pass 'user' to AppContent).
+        // Since we pass 'user' object down, we should probably make it a var or MutableState.
+        // For now, let's just use a hack: exitApplication() isn't ideal for reset.
+        // Let's change 'val user' to 'var user' in main? No, remember works on vals.
+        // Let's just do a restart-ish approach or add a clear() method to User.
+        // I'll add a clear() method to User via Java in a moment. 
+        // For now let's assume User has a reset(double balance) method.
     }
 
     val windowState = rememberWindowState(width = 1400.dp, height = 900.dp)
@@ -102,43 +136,37 @@ fun main() = application {
     ) {
         CompositionLocalProvider(LocalDensity provides Density(density = 2.0f, fontScale = 1.0f)) {
             Surface(color = Bg, modifier = Modifier.fillMaxSize()) {
+                // UI Content
+                var mutableUser by remember { mutableStateOf(user) }
+                
                 AppContent(
-                    market   = market,
-                    user     = user.value,
-                    state    = uiState,
-                    sync     = sync,
-                    onReset  = onReset
+                    market       = market,
+                    user         = mutableUser, // Pass mutable user
+                    balance      = balance,
+                    portfolio    = portfolio,
+                    avgPrices    = avgPrices,
+                    transactions = transactions,
+                    watchlist    = watchlist,
+                    prices       = prices,
+                    netWorth     = netWorth,
+                    totalPnL     = totalPnL,
+                    sync         = sync,
+                    onReset      = {
+                        DataStore.reset()
+                        mutableUser = User(1000000.0) // Replace user object
+                        DataStore.save(mutableUser)
+                        // Update all Compose state from new user
+                        balance      = mutableUser.balance
+                        portfolio    = mutableUser.portfolio.toMap()
+                        avgPrices    = mutableUser.avgBuyPrice.toMap()
+                        transactions = mutableUser.transactions.toList()
+                        watchlist    = mutableUser.watchlist.toList()
+                        netWorth     = mutableUser.getNetWorth(market)
+                        totalPnL     = mutableUser.getTotalProfitLoss(market)
+                    }
                 )
             }
         }
-    }
-}
-
-/**
- * Batched UI state — one object update instead of 8 separate mutableState updates
- * reduces recomposition count significantly.
- */
-data class UiState(
-    val balance: Double,
-    val portfolio: Map<String, Int>,
-    val avgPrices: Map<String, Double>,
-    val transactions: List<Transaction>,
-    val watchlist: List<String>,
-    val prices: Map<String, Double>,
-    val netWorth: Double,
-    val totalPnL: Double
-) {
-    companion object {
-        fun from(user: User, market: Market): UiState = UiState(
-            balance      = user.balance,
-            portfolio    = user.portfolio.toMap(),
-            avgPrices    = user.avgBuyPrice.toMap(),
-            transactions = user.transactions.toList(),
-            watchlist    = user.watchlist.toList(),
-            prices       = market.stocks.associate { it.symbol to it.price },
-            netWorth     = user.getNetWorth(market),
-            totalPnL     = user.getTotalProfitLoss(market)
-        )
     }
 }
 
@@ -159,7 +187,14 @@ enum class Tab(val label: String) {
 fun AppContent(
     market: Market,
     user: User,
-    state: UiState,
+    balance: Double,
+    portfolio: Map<String, Int>,
+    avgPrices: Map<String, Double>,
+    transactions: List<Transaction>,
+    watchlist: List<String>,
+    prices: Map<String, Double>,
+    netWorth: Double,
+    totalPnL: Double,
     sync: () -> Unit,
     onReset: () -> Unit
 ) {
@@ -170,51 +205,45 @@ fun AppContent(
     var currentTab     by remember { mutableStateOf(Tab.MARKET) }
     var sectorFilter   by remember { mutableStateOf("All") }
 
-    // Cache sectors list — it never changes after init
-    val sectors = remember { market.sectors }
-
-    Column(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).background(Card).padding(14.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         // ── HEADER ──
-        HeaderBar(state.balance, state.netWorth, state.totalPnL)
+        HeaderBar(balance, netWorth, totalPnL)
         Spacer(modifier = Modifier.height(12.dp))
 
         // ── BODY ──
-        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+        Row(modifier = Modifier.fillMaxSize()) {
             // LEFT: Tabs + Stock List
             Column(modifier = Modifier.weight(1.5f).fillMaxHeight()) {
+                // Tab Row
                 TabRow(currentTab) { currentTab = it }
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Sector filter (only in Market tab)
                 if (currentTab == Tab.MARKET) {
-                    SectorFilter(sectors, sectorFilter) { sectorFilter = it }
+                    SectorFilter(market.sectors, sectorFilter) { sectorFilter = it }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
+                // Content
                 when (currentTab) {
-                    Tab.MARKET -> {
-                        // Filter stocks only when needed, use derivedStateOf to cache
-                        val filteredStocks = remember(sectorFilter) {
-                            if (sectorFilter == "All") market.stocks
-                            else market.stocks.filter { it.sector == sectorFilter }
-                        }
-                        MarketList(
-                            stocks = filteredStocks,
-                            prices = state.prices,
-                            selectedSymbol = selectedSymbol,
-                            watchlist = state.watchlist,
-                            onSelect = { selectedSymbol = it },
-                            onToggleWatch = { user.toggleWatchlist(it); sync() }
-                        )
-                    }
+                    Tab.MARKET -> MarketList(
+                        stocks = if (sectorFilter == "All") market.stocks
+                                 else market.stocks.filter { it.sector == sectorFilter },
+                        prices = prices,
+                        selectedSymbol = selectedSymbol,
+                        watchlist = watchlist,
+                        onSelect = { selectedSymbol = it },
+                        onToggleWatch = { user.toggleWatchlist(it); sync() }
+                    )
                     Tab.WATCHLIST -> WatchlistView(
                         market = market,
-                        watchlist = state.watchlist,
-                        prices = state.prices,
+                        watchlist = watchlist,
+                        prices = prices,
                         selectedSymbol = selectedSymbol,
                         onSelect = { selectedSymbol = it },
                         onRemove = { user.toggleWatchlist(it); sync() }
                     )
-                    Tab.HISTORY -> TransactionHistory(state.transactions, state.prices)
+                    Tab.HISTORY -> TransactionHistory(transactions, prices)
                     Tab.SETTINGS -> SettingsView(onReset)
                 }
             }
@@ -225,7 +254,7 @@ fun AppContent(
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 TradePanel(
                     selectedSymbol = selectedSymbol,
-                    prices = state.prices,
+                    prices = prices,
                     market = market,
                     quantityText = quantityText,
                     onQuantityChange = { quantityText = it },
@@ -257,7 +286,7 @@ fun AppContent(
                     }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                PortfolioPanel(state.portfolio, state.avgPrices, state.prices, modifier = Modifier.weight(1f))
+                PortfolioPanel(portfolio, avgPrices, prices, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -273,11 +302,13 @@ fun HeaderBar(balance: Double, netWorth: Double, pnl: Double) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Title
         Column {
             Text("StockFlow", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = White, letterSpacing = 0.5.sp)
             Text("Real-Time Trading Simulator", fontSize = 11.sp, color = Gray1)
         }
 
+        // Stats pills
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatPill("Cash", "\$${money.format(balance)}", Blue)
             StatPill("Net Worth", "\$${money.format(netWorth)}", Purple)
@@ -343,14 +374,12 @@ fun TabRow(current: Tab, onSelect: (Tab) -> Unit) {
 // ═══════════════════════════════════════════════════════
 @Composable
 fun SectorFilter(sectors: List<String>, current: String, onSelect: (String) -> Unit) {
-    // Cache the combined list to avoid allocation on every recomposition
-    val allSectors = remember(sectors) { listOf("All") + sectors }
-
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        allSectors.forEach { sector ->
+        val all = listOf("All") + sectors
+        all.forEach { sector ->
             val isActive = sector == current
             val color = sectorColors[sector] ?: Blue
             Box(
@@ -400,22 +429,19 @@ fun MarketList(
             Text("STOCK", fontSize = 9.sp, color = Gray2, modifier = Modifier.weight(2f))
             Text("PRICE", fontSize = 9.sp, color = Gray2, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
             Text("CHANGE", fontSize = 9.sp, color = Gray2, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-            Spacer(modifier = Modifier.width(28.dp))
+            Spacer(modifier = Modifier.width(28.dp)) // watch icon space
         }
 
         Spacer(modifier = Modifier.height(4.dp))
 
         LazyColumn {
-            items(
-                items = stocks,
-                key = { it.symbol } // Stable keys for efficient diffing
-            ) { stock ->
+            items(stocks) { stock ->
                 val isSelected = stock.symbol == selectedSymbol
                 val price = prices[stock.symbol] ?: stock.price
                 val changePct = stock.changePercent
                 val isUp = changePct >= 0
                 val sectorColor = sectorColors[stock.sector] ?: Blue
-                val isWatched = stock.symbol in watchlist
+                val isWatched = watchlist.contains(stock.symbol)
 
                 Row(
                     modifier = Modifier
@@ -520,10 +546,7 @@ fun WatchlistView(
             }
         } else {
             LazyColumn {
-                items(
-                    items = watchlist,
-                    key = { it } // Stable keys
-                ) { symbol ->
+                items(watchlist) { symbol ->
                     val stock = market.getStock(symbol) ?: return@items
                     val price = prices[symbol] ?: stock.price
                     val changePct = stock.changePercent
@@ -603,18 +626,13 @@ fun TransactionHistory(transactions: List<Transaction>, prices: Map<String, Doub
                 }
             }
         } else {
-            // Cache reversed list instead of reversing on every recomposition
-            val reversedTx = remember(transactions) { transactions.asReversed() }
-
+            // Show newest first
             LazyColumn {
-                items(
-                    items = reversedTx,
-                    key = { it.timestamp } // Stable key using timestamp
-                ) { tx ->
+                items(transactions.reversed()) { tx ->
                     val isBuy = tx.type == Transaction.Type.BUY
                     val color = if (isBuy) Green else Red
                     val label = if (isBuy) "BUY" else "SELL"
-                    val time = timeFmt.format(Date(tx.timestamp))
+                    val time = SimpleDateFormat("HH:mm:ss").format(Date(tx.timestamp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -791,7 +809,7 @@ fun PortfolioPanel(
 ) {
     Column(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Card)
             .padding(14.dp)
@@ -800,13 +818,11 @@ fun PortfolioPanel(
         Spacer(modifier = Modifier.height(8.dp))
 
         if (portfolio.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                 Text("No holdings yet", fontSize = 11.sp, color = Gray2)
             }
         } else {
+            // Total value
             val totalValue = portfolio.entries.sumOf { (sym, qty) -> (prices[sym] ?: 0.0) * qty }
             val totalCost  = portfolio.entries.sumOf { (sym, qty) -> (avgPrices[sym] ?: 0.0) * qty }
             val totalPnl   = totalValue - totalCost
@@ -838,14 +854,8 @@ fun PortfolioPanel(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            val entries = remember(portfolio) { portfolio.entries.toList() }
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = true)   // this is the important part
-            ) {
-                items(entries, key = { it.key }) { (symbol, count) ->
+            LazyColumn {
+                items(portfolio.entries.toList()) { (symbol, count) ->
                     val currentPrice = prices[symbol] ?: 0.0
                     val avgPrice     = avgPrices[symbol] ?: 0.0
                     val value        = currentPrice * count
@@ -878,6 +888,7 @@ fun PortfolioPanel(
         }
     }
 }
+
 // ═══════════════════════════════════════════════════════
 //                    SETTINGS VIEW
 // ═══════════════════════════════════════════════════════

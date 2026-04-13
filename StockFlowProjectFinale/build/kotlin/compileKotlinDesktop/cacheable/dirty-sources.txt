@@ -1,0 +1,12 @@
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/desktopMain/kotlin/com/stock/util/TimeFormatting.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/model/Stock.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/util/Formatting.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/ui/App.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/desktopMain/kotlin/com/stock/storage/DataStore.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/model/UiState.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/storage/DataStore.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/model/Transaction.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/util/TimeFormatting.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/model/User.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/desktopMain/kotlin/com/stock/desktop/Main.kt
+/home/vinnavan/personal/code/AndroidKotlinCourse/StockFlowProjectFinale/src/commonMain/kotlin/com/stock/model/Market.kt
