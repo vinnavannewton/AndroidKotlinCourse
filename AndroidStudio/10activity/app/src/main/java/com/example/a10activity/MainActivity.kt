@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
         }
         goToButton = findViewById(R.id.button_go_to_act)
         goToButton.setOnClickListener {
-            Intent(this@MainActivity, SecondActivity::class.java).also {
+            Intent(this, SecondActivity::class.java).also {
                 it.putExtra(Constants.INTENT_MESSAGE_KEY, "Hello from first Activity")
                 it.putExtra(Constants.INTENT_MESSAGE2_KEY, "How was your day?")
                 it.putExtra(Constants.INTENT_DATA_NUMBER, 3.14)

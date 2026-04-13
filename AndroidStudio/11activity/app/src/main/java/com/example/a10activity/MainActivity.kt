@@ -24,24 +24,25 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+        textViewResult = findViewById(R.id.textView)
+        goToButton = findViewById(R.id.button_go_to_act)
+
         val getResult =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 if(it.resultCode == Constants.RESULT_CODE) {
-                    val message = it.data!!.getStringExtra((Constants.INTENT_MESSAGE2_KEY))
+                    val message = it.data?.getStringExtra(Constants.INTENT_MESSAGE2_KEY)
                     textViewResult.text = message
                 }
             }
-        textViewResult = findViewById(R.id.textView)
-        goToButton = findViewById(R.id.button_go_to_act)
+
         goToButton.setOnClickListener {
             Intent(this@MainActivity, SecondActivity::class.java).also {
                 it.putExtra(Constants.INTENT_MESSAGE_KEY, "Hello from first Activity")
                 it.putExtra(Constants.INTENT_MESSAGE2_KEY, "How was your day?")
                 it.putExtra(Constants.INTENT_DATA_NUMBER, 3.14)
-                startActivity(it)
-                getResult.launch(intent)
-
+                getResult.launch(it)
             }
         }
     }
-} //20:37:09
+}

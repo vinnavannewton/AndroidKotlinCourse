@@ -8,8 +8,8 @@
     tools:context=".MainActivity">
 
     <TextView
-        android:layout_width="80dp"
-        android:layout_height="22dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_marginTop="308dp"
         android:text="@string/activity_1"
         android:textSize="20sp"
@@ -24,6 +24,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="272dp"
         android:text="@string/button_go_to_second_activity"
+        android:textSize="20sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.482"
