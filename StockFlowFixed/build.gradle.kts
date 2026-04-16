@@ -73,6 +73,9 @@ android {
     buildFeatures {
         compose = true
     }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "2.1.0"   // matches your Kotlin version
+    }
 }
 
 compose.desktop {

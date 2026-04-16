@@ -292,25 +292,24 @@ private fun DesktopLayout(
         }
     }
 }
-
 @Composable
 private fun MobileLayout(
     market: Market,
     user: User,
     state: UiState,
     sync: () -> Unit,
-    onReset: () -> Unit,
-    selectedSymbol: String,
-    onSelectSymbol: (String) -> Unit,
-    quantityText: String,
-    onQuantityChange: (String) -> Unit,
-    message: String,
-    messageIsError: Boolean,
-    onMessage: (String, Boolean) -> Unit,
-    currentSection: Section,
-    onSectionChange: (Section) -> Unit,
-    sectorFilter: String,
-    onSectorFilterChange: (String) -> Unit,
+                         onReset: () -> Unit,
+                         selectedSymbol: String,
+                         onSelectSymbol: (String) -> Unit,
+                         quantityText: String,
+                         onQuantityChange: (String) -> Unit,
+                         message: String,
+                         messageIsError: Boolean,
+                         onMessage: (String, Boolean) -> Unit,
+                         currentSection: Section,
+                         onSectionChange: (Section) -> Unit,
+                         sectorFilter: String,
+                         onSectorFilterChange: (String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         TopTabs(currentSection, onSectionChange)
@@ -320,9 +319,12 @@ private fun MobileLayout(
             Section.Market -> {
                 SectorFilter(market.sectors, sectorFilter, onSectorFilterChange)
                 Spacer(Modifier.height(8.dp))
+
                 val filtered = remember(sectorFilter, market.stocks) {
-                    if (sectorFilter == "All") market.stocks else market.stocks.filter { it.sector == sectorFilter }
+                    if (sectorFilter == "All") market.stocks
+                        else market.stocks.filter { it.sector == sectorFilter }
                 }
+
                 MarketList(
                     stocks = filtered,
                     prices = state.prices,
@@ -333,28 +335,32 @@ private fun MobileLayout(
                         user.toggleWatchlist(it)
                         sync()
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1.6f),
                 )
+
                 Spacer(Modifier.height(8.dp))
-                TradePanel(
-                    selectedSymbol = selectedSymbol,
-                    prices = state.prices,
-                    market = market,
-                    quantityText = quantityText,
-                    onQuantityChange = onQuantityChange,
-                    message = message,
-                    messageIsError = messageIsError,
-                    onBuy = { handleTrade(true, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                    onSell = { handleTrade(false, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                    modifier = Modifier.heightIn(min = 250.dp),
-                )
-                Spacer(Modifier.height(8.dp))
-                PortfolioPanel(
-                    portfolio = state.portfolio,
-                    avgPrices = state.avgPrices,
-                    prices = state.prices,
-                    modifier = Modifier.heightIn(min = 240.dp),
-                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    TradePanel(
+                        selectedSymbol = selectedSymbol,
+                        prices = state.prices,
+                        market = market,
+                        quantityText = quantityText,
+                        onQuantityChange = onQuantityChange,
+                        message = message,
+                        messageIsError = messageIsError,
+                        onBuy = { handleTrade(true, user, market, selectedSymbol, quantityText, sync, onMessage) },
+                               onSell = { handleTrade(false, user, market, selectedSymbol, quantityText, sync, onMessage) },
+                               modifier = Modifier.weight(1f).heightIn(min = 180.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    PortfolioPanel(
+                        portfolio = state.portfolio,
+                        avgPrices = state.avgPrices,
+                        prices = state.prices,
+                        modifier = Modifier.weight(1f).heightIn(min = 180.dp),
+                    )
+                }
             }
 
             Section.Watchlist -> {
@@ -364,11 +370,8 @@ private fun MobileLayout(
                     prices = state.prices,
                     selectedSymbol = selectedSymbol,
                     onSelect = onSelectSymbol,
-                    onRemove = {
-                        user.toggleWatchlist(it)
-                        sync()
-                    },
-                    modifier = Modifier.weight(1f),
+                    onRemove = { user.toggleWatchlist(it); sync() },
+                              modifier = Modifier.weight(1.6f),
                 )
                 Spacer(Modifier.height(8.dp))
                 TradePanel(
@@ -380,8 +383,8 @@ private fun MobileLayout(
                     message = message,
                     messageIsError = messageIsError,
                     onBuy = { handleTrade(true, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                    onSell = { handleTrade(false, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                    modifier = Modifier.heightIn(min = 250.dp),
+                           onSell = { handleTrade(false, user, market, selectedSymbol, quantityText, sync, onMessage) },
+                           modifier = Modifier.weight(1f).heightIn(min = 180.dp),
                 )
             }
 
@@ -395,7 +398,6 @@ private fun MobileLayout(
         }
     }
 }
-
 private fun handleTrade(
     isBuy: Boolean,
     user: User,
