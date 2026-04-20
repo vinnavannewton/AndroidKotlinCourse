@@ -1,48 +1,66 @@
 package com.stock.ui
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Divider
+import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.TextFieldDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.stock.model.Market
@@ -52,443 +70,580 @@ import com.stock.model.UiState
 import com.stock.model.User
 import com.stock.storage.DataStore
 import com.stock.util.formatMoney
-import com.stock.util.formatPercent
 import com.stock.util.formatSignedMoney
 import kotlinx.coroutines.flow.MutableStateFlow
 
-private val Background = Color(0xFF0B0F17)
-private val Surface1 = Color(0xFF111827)
-private val Surface2 = Color(0xFF1F2937)
-private val Accent = Color(0xFF60A5FA)
-private val Good = Color(0xFF34D399)
-private val Bad = Color(0xFFF87171)
-private val Text1 = Color(0xFFF9FAFB)
-private val Text2 = Color(0xFF9CA3AF)
-private val Border = Color(0xFF334155)
+// ── Colours ────────────────────────────────────────────────────────────────
+private val Background = Color(0xFF07090F)
+private val Surface1   = Color(0xFF0F172A)
+private val Surface2   = Color(0xFF1E293B)
+private val Accent     = Color(0xFF38BDF8)
+private val Good       = Color(0xFF4ADE80)
+private val Bad        = Color(0xFFF87171)
+private val Text1      = Color(0xFFF8FAFC)
+private val Text2      = Color(0xFF94A3B8)
+private val Border     = Color(0xFF334155)
 
 private val sectorsColor = mapOf(
-    "Technology" to Accent,
-    "Automotive" to Color(0xFFF59E0B),
-    "Finance" to Good,
+    "Technology" to Color(0xFF38BDF8),
+    "Automotive" to Color(0xFFFB923C),
+    "Finance"    to Color(0xFF4ADE80),
     "Healthcare" to Color(0xFFF472B6),
-    "Consumer" to Color(0xFFA78BFA),
-    "Fintech" to Color(0xFF22D3EE),
+    "Consumer"   to Color(0xFFA78BFA),
+    "Fintech"    to Color(0xFF22D3EE),
 )
 
-private enum class Section { Market, Watchlist, History, Settings }
+private enum class Section(val icon: ImageVector) {
+    Market(Icons.Default.TrendingUp),
+    Watchlist(Icons.Default.Star),
+    Portfolio(Icons.Default.AccountBalanceWallet),
+    History(Icons.Default.History),
+    Settings(Icons.Default.Settings)
+}
 
 private fun formatTime(epochMillis: Long): String {
     val totalSeconds = epochMillis / 1000
-    val hours = (totalSeconds / 3600) % 24
+    val hours   = (totalSeconds / 3600) % 24
     val minutes = (totalSeconds / 60) % 60
     val seconds = totalSeconds % 60
     return "%02d:%02d:%02d".format(hours, minutes, seconds)
 }
 
+// ── Preview-safe fake data ──────────────────────────────────────────────────
+private fun fakeStocks() = listOf(
+    Stock("AAPL", "Apple Inc.",      "Technology", 182.50),
+    Stock("TSLA", "Tesla Motors",    "Automotive",  245.30),
+    Stock("GOOG", "Alphabet Inc.",   "Technology", 142.10),
+    Stock("JPM",  "JP Morgan",       "Finance",     198.75),
+    Stock("AMZN", "Amazon.com",      "Consumer",    178.90),
+)
+
+private fun fakeUiState(): UiState {
+    val stocks = fakeStocks()
+    return UiState(
+        balance      = 980_000.0,
+        netWorth     = 1_050_000.0,
+        totalPnL     = 50_000.0,
+        prices       = stocks.associate { it.symbol to it.price },
+        watchlist    = listOf("AAPL", "TSLA"),
+        portfolio    = mapOf("AAPL" to 10, "GOOG" to 5),
+        avgPrices    = mapOf("AAPL" to 170.0, "GOOG" to 130.0),
+        transactions = listOf(
+            Transaction(Transaction.Type.BUY, "AAPL", 10, 170.0, System.currentTimeMillis() - 60_000),
+            Transaction(Transaction.Type.BUY, "GOOG",  5, 130.0, System.currentTimeMillis() - 30_000),
+            Transaction(Transaction.Type.SELL, "TSLA",  3, 240.0, System.currentTimeMillis() - 10_000),
+        ),
+    )
+}
+
+// ── Root composable ─────────────────────────────────────────────────────────
 @Composable
 fun StockFlowApp() {
-    val market = remember { Market() }
-    var user by remember { mutableStateOf(DataStore.load(1_000_000.0)) }
-    val uiStateFlow = remember { MutableStateFlow(UiState.from(user, market)) }
+    val isPreview = LocalInspectionMode.current
+
+    val market = remember { if (isPreview) null else Market() }
+    var user   by remember { mutableStateOf(if (isPreview) User(1_000_000.0) else DataStore.load(1_000_000.0)) }
+
+    val uiStateFlow = remember {
+        MutableStateFlow(
+            if (isPreview) fakeUiState()
+            else UiState.from(user, market!!)
+        )
+    }
     val uiState by uiStateFlow.collectAsState()
 
-    DisposableEffect(Unit) {
-        market.setOnUpdateCallback {
-            uiStateFlow.value = UiState.from(user, market)
+    if (!isPreview) {
+        DisposableEffect(Unit) {
+            market!!.setOnUpdateCallback {
+                uiStateFlow.value = UiState.from(user, market)
+            }
+            market.startSimulation()
+            onDispose { market.stopSimulation() }
         }
-        market.startSimulation()
-        onDispose { market.stopSimulation() }
     }
 
     val sync: () -> Unit = {
-        DataStore.save(user)
-        uiStateFlow.value = UiState.from(user, market)
+        if (!isPreview) {
+            DataStore.save(user)
+            uiStateFlow.value = UiState.from(user, market!!)
+        }
     }
 
     val reset: () -> Unit = {
-        DataStore.reset()
-        user = User(1_000_000.0)
-        DataStore.save(user)
-        uiStateFlow.value = UiState.from(user, market)
+        if (!isPreview) {
+            DataStore.reset()
+            user = User(1_000_000.0)
+            DataStore.save(user)
+            uiStateFlow.value = UiState.from(user, market!!)
+        }
     }
 
     MaterialTheme {
         Surface(color = Background, modifier = Modifier.fillMaxSize()) {
             AppContent(
-                market = market,
-                user = user,
-                state = uiState,
-                sync = sync,
-                onReset = reset,
+                market        = market,
+                user          = user,
+                state         = uiState,
+                sync          = sync,
+                onReset       = reset,
+                isPreview     = isPreview,
             )
         }
     }
 }
 
+// ── AppContent ───────────────────────────────────────────────────────────────
 @Composable
 fun AppContent(
-    market: Market,
-    user: User,
-    state: UiState,
-    sync: () -> Unit,
-    onReset: () -> Unit,
+    market    : Market?,
+    user      : User,
+    state     : UiState,
+    sync      : () -> Unit,
+    onReset   : () -> Unit,
+    isPreview : Boolean = false,
 ) {
-    var selectedSymbol by remember { mutableStateOf("") }
-    var quantityText by remember { mutableStateOf("1") }
-    var message by remember { mutableStateOf("") }
-    var messageIsError by remember { mutableStateOf(false) }
-    var currentSection by remember { mutableStateOf(Section.Market) }
-    var sectorFilter by remember { mutableStateOf("All") }
+    var selectedSymbol  by remember { mutableStateOf("AAPL") }
+    var quantityText    by remember { mutableStateOf("1") }
+    var message         by remember { mutableStateOf("") }
+    var messageIsError  by remember { mutableStateOf(false) }
+    var currentSection  by remember { mutableStateOf(Section.Market) }
+    var sectorFilter    by remember { mutableStateOf("All") }
+
+    val stockList = if (isPreview) fakeStocks() else market!!.stocks
+    val sectors   = if (isPreview) listOf("Technology","Automotive","Finance","Healthcare","Consumer","Fintech")
+    else market!!.sectors
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
         val compact = maxWidth < 840.dp
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(Surface1)
-                .padding(14.dp)
+                .padding(16.dp)
         ) {
             HeaderBar(state.balance, state.netWorth, state.totalPnL)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
             if (compact) {
                 MobileLayout(
-                    market = market,
-                    user = user,
-                    state = state,
-                    sync = sync,
-                    onReset = onReset,
-                    selectedSymbol = selectedSymbol,
-                    onSelectSymbol = { selectedSymbol = it },
-                    quantityText = quantityText,
-                    onQuantityChange = { quantityText = it },
-                    message = message,
-                    messageIsError = messageIsError,
-                    onMessage = { text, isError -> message = text; messageIsError = isError },
-                    currentSection = currentSection,
+                    stockList       = stockList,
+                    sectors         = sectors,
+                    user            = user,
+                    state           = state,
+                    sync            = sync,
+                    onReset         = onReset,
+                    selectedSymbol  = selectedSymbol,
+                    onSelectSymbol  = { selectedSymbol = it },
+                    quantityText    = quantityText,
+                    onQuantityChange= { quantityText = it },
+                    message         = message,
+                    messageIsError  = messageIsError,
+                    onMessage       = { t, e -> message = t; messageIsError = e },
+                    currentSection  = currentSection,
                     onSectionChange = { currentSection = it },
-                    sectorFilter = sectorFilter,
+                    sectorFilter    = sectorFilter,
                     onSectorFilterChange = { sectorFilter = it },
+                    isPreview       = isPreview,
                 )
             } else {
                 DesktopLayout(
-                    market = market,
-                    user = user,
-                    state = state,
-                    sync = sync,
-                    onReset = onReset,
-                    selectedSymbol = selectedSymbol,
-                    onSelectSymbol = { selectedSymbol = it },
-                    quantityText = quantityText,
-                    onQuantityChange = { quantityText = it },
-                    message = message,
-                    messageIsError = messageIsError,
-                    onMessage = { text, isError -> message = text; messageIsError = isError },
-                    currentSection = currentSection,
+                    stockList       = stockList,
+                    sectors         = sectors,
+                    user            = user,
+                    state           = state,
+                    sync            = sync,
+                    onReset         = onReset,
+                    selectedSymbol  = selectedSymbol,
+                    onSelectSymbol  = { selectedSymbol = it },
+                    quantityText    = quantityText,
+                    onQuantityChange= { quantityText = it },
+                    message         = message,
+                    messageIsError  = messageIsError,
+                    onMessage       = { t, e -> message = t; messageIsError = e },
+                    currentSection  = currentSection,
                     onSectionChange = { currentSection = it },
-                    sectorFilter = sectorFilter,
+                    sectorFilter    = sectorFilter,
                     onSectorFilterChange = { sectorFilter = it },
+                    isPreview       = isPreview,
                 )
             }
         }
     }
 }
 
+// ── Desktop layout ───────────────────────────────────────────────────────────
 @Composable
 private fun DesktopLayout(
-    market: Market,
-    user: User,
-    state: UiState,
-    sync: () -> Unit,
-    onReset: () -> Unit,
-    selectedSymbol: String,
-    onSelectSymbol: (String) -> Unit,
-    quantityText: String,
-    onQuantityChange: (String) -> Unit,
-    message: String,
-    messageIsError: Boolean,
-    onMessage: (String, Boolean) -> Unit,
-    currentSection: Section,
-    onSectionChange: (Section) -> Unit,
-    sectorFilter: String,
+    stockList        : List<Stock>,
+    sectors          : List<String>,
+    user             : User,
+    state            : UiState,
+    sync             : () -> Unit,
+    onReset          : () -> Unit,
+    selectedSymbol   : String,
+    onSelectSymbol   : (String) -> Unit,
+    quantityText     : String,
+    onQuantityChange : (String) -> Unit,
+    message          : String,
+    messageIsError   : Boolean,
+    onMessage        : (String, Boolean) -> Unit,
+    currentSection   : Section,
+    onSectionChange  : (Section) -> Unit,
+    sectorFilter     : String,
     onSectorFilterChange: (String) -> Unit,
+    isPreview        : Boolean,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.weight(1.4f).fillMaxSize()) {
+        Column(modifier = Modifier.weight(1.5f).fillMaxSize()) {
             TopTabs(currentSection, onSectionChange)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
 
             when (currentSection) {
                 Section.Market -> {
-                    SectorFilter(market.sectors, sectorFilter, onSectorFilterChange)
-                    Spacer(Modifier.height(8.dp))
-                    val filtered = if (sectorFilter == "All") market.stocks
-                    else market.stocks.filter { it.sector == sectorFilter }
+                    SectorFilter(sectors, sectorFilter, onSectorFilterChange)
+                    Spacer(Modifier.height(12.dp))
+                    val filtered = if (sectorFilter == "All") stockList
+                    else stockList.filter { it.sector == sectorFilter }
                     MarketList(
-                        stocks = filtered,
-                        prices = state.prices,
+                        stocks         = filtered,
+                        prices         = state.prices,
                         selectedSymbol = selectedSymbol,
-                        watchlist = state.watchlist,
-                        onSelect = onSelectSymbol,
-                        onToggleWatch = {
-                            user.toggleWatchlist(it)
-                            sync()
-                        },
-                        modifier = Modifier.weight(1f),
+                        watchlist      = state.watchlist,
+                        onSelect       = onSelectSymbol,
+                        onWatchlistToggle = { sym ->
+                            if (!isPreview) {
+                                user.toggleWatchlist(sym)
+                                sync()
+                            }
+                        }
                     )
                 }
-
-                Section.Watchlist -> WatchlistView(
-                    market = market,
-                    watchlist = state.watchlist,
-                    prices = state.prices,
-                    selectedSymbol = selectedSymbol,
-                    onSelect = onSelectSymbol,
-                    onRemove = {
-                        user.toggleWatchlist(it)
-                        sync()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-
-                Section.History -> TransactionHistory(
-                    transactions = state.transactions,
-                    prices = state.prices,
-                    modifier = Modifier.weight(1f),
-                )
-
-                Section.Settings -> SettingsView(onReset = onReset, modifier = Modifier.weight(1f))
+                Section.Watchlist -> {
+                    val filtered = stockList.filter { it.symbol in state.watchlist }
+                    MarketList(
+                        stocks         = filtered,
+                        prices         = state.prices,
+                        selectedSymbol = selectedSymbol,
+                        watchlist      = state.watchlist,
+                        onSelect       = onSelectSymbol,
+                        onWatchlistToggle = { sym ->
+                            if (!isPreview) {
+                                user.toggleWatchlist(sym)
+                                sync()
+                            }
+                        }
+                    )
+                }
+                Section.Portfolio -> {
+                    PortfolioView(
+                        stockList = stockList,
+                        state = state,
+                        onSelect = onSelectSymbol
+                    )
+                }
+                Section.History -> {
+                    HistoryList(state.transactions)
+                }
+                Section.Settings -> {
+                    SettingsView(onReset)
+                }
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(24.dp))
 
         Column(modifier = Modifier.weight(1f).fillMaxSize()) {
-            TradePanel(
-                selectedSymbol = selectedSymbol,
-                prices = state.prices,
-                market = market,
-                quantityText = quantityText,
-                onQuantityChange = onQuantityChange,
-                message = message,
-                messageIsError = messageIsError,
-                onBuy = { handleTrade(true, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                onSell = { handleTrade(false, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.height(12.dp))
-            PortfolioPanel(
-                portfolio = state.portfolio,
-                avgPrices = state.avgPrices,
-                prices = state.prices,
-                modifier = Modifier.weight(1f),
-            )
+            val stock = stockList.find { it.symbol == selectedSymbol }
+            if (stock != null) {
+                StockDetailCard(
+                    stock          = stock,
+                    currentPrice   = state.prices[stock.symbol] ?: stock.price,
+                    portfolioCount = state.portfolio[stock.symbol] ?: 0,
+                    avgPrice       = state.avgPrices[stock.symbol] ?: 0.0,
+                    quantityText   = quantityText,
+                    onQuantityChange = onQuantityChange,
+                    message        = message,
+                    messageIsError = messageIsError,
+                    onBuy          = { qty ->
+                        if (!isPreview) {
+                            if (user.buyStock(stock, qty)) {
+                                onMessage("Bought $qty ${stock.symbol}", false)
+                                sync()
+                            } else {
+                                onMessage("Insufficient funds", true)
+                            }
+                        }
+                    },
+                    onSell         = { qty ->
+                        if (!isPreview) {
+                            if (user.sellStock(stock, qty)) {
+                                onMessage("Sold $qty ${stock.symbol}", false)
+                                sync()
+                            } else {
+                                onMessage("Not enough shares", true)
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }
+
+// ── Mobile layout ────────────────────────────────────────────────────────────
 @Composable
 private fun MobileLayout(
-    market: Market,
-    user: User,
-    state: UiState,
-    sync: () -> Unit,
-                         onReset: () -> Unit,
-                         selectedSymbol: String,
-                         onSelectSymbol: (String) -> Unit,
-                         quantityText: String,
-                         onQuantityChange: (String) -> Unit,
-                         message: String,
-                         messageIsError: Boolean,
-                         onMessage: (String, Boolean) -> Unit,
-                         currentSection: Section,
-                         onSectionChange: (Section) -> Unit,
-                         sectorFilter: String,
-                         onSectorFilterChange: (String) -> Unit,
+    stockList        : List<Stock>,
+    sectors          : List<String>,
+    user             : User,
+    state            : UiState,
+    sync             : () -> Unit,
+    onReset          : () -> Unit,
+    selectedSymbol   : String,
+    onSelectSymbol   : (String) -> Unit,
+    quantityText     : String,
+    onQuantityChange : (String) -> Unit,
+    message          : String,
+    messageIsError   : Boolean,
+    onMessage        : (String, Boolean) -> Unit,
+    currentSection   : Section,
+    onSectionChange  : (Section) -> Unit,
+    sectorFilter     : String,
+    onSectorFilterChange: (String) -> Unit,
+    isPreview        : Boolean,
 ) {
+    var showSheet by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopTabs(currentSection, onSectionChange)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
 
-        when (currentSection) {
-            Section.Market -> {
-                SectorFilter(market.sectors, sectorFilter, onSectorFilterChange)
-                Spacer(Modifier.height(8.dp))
-
-                val filtered = remember(sectorFilter, market.stocks) {
-                    if (sectorFilter == "All") market.stocks
-                        else market.stocks.filter { it.sector == sectorFilter }
+        Box(modifier = Modifier.weight(1f)) {
+            when (currentSection) {
+                Section.Market -> {
+                    Column {
+                        SectorFilter(sectors, sectorFilter, onSectorFilterChange)
+                        Spacer(Modifier.height(12.dp))
+                        val filtered = if (sectorFilter == "All") stockList
+                        else stockList.filter { it.sector == sectorFilter }
+                        MarketList(
+                            stocks         = filtered,
+                            prices         = state.prices,
+                            selectedSymbol = selectedSymbol,
+                            watchlist      = state.watchlist,
+                            onSelect       = { onSelectSymbol(it); showSheet = true },
+                            onWatchlistToggle = { sym ->
+                                if (!isPreview) {
+                                    user.toggleWatchlist(sym)
+                                    sync()
+                                }
+                            }
+                        )
+                    }
                 }
-
-                MarketList(
-                    stocks = filtered,
-                    prices = state.prices,
-                    selectedSymbol = selectedSymbol,
-                    watchlist = state.watchlist,
-                    onSelect = onSelectSymbol,
-                    onToggleWatch = {
-                        user.toggleWatchlist(it)
-                        sync()
-                    },
-                    modifier = Modifier.weight(1.6f),
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    TradePanel(
+                Section.Watchlist -> {
+                    val filtered = stockList.filter { it.symbol in state.watchlist }
+                    MarketList(
+                        stocks         = filtered,
+                        prices         = state.prices,
                         selectedSymbol = selectedSymbol,
-                        prices = state.prices,
-                        market = market,
-                        quantityText = quantityText,
-                        onQuantityChange = onQuantityChange,
-                        message = message,
-                        messageIsError = messageIsError,
-                        onBuy = { handleTrade(true, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                               onSell = { handleTrade(false, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                               modifier = Modifier.weight(1f).heightIn(min = 180.dp),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    PortfolioPanel(
-                        portfolio = state.portfolio,
-                        avgPrices = state.avgPrices,
-                        prices = state.prices,
-                        modifier = Modifier.weight(1f).heightIn(min = 180.dp),
+                        watchlist      = state.watchlist,
+                        onSelect       = { onSelectSymbol(it); showSheet = true },
+                        onWatchlistToggle = { sym ->
+                            if (!isPreview) {
+                                user.toggleWatchlist(sym)
+                                sync()
+                            }
+                        }
                     )
                 }
+                Section.Portfolio -> {
+                    PortfolioView(
+                        stockList = stockList,
+                        state = state,
+                        onSelect = { onSelectSymbol(it); showSheet = true }
+                    )
+                }
+                Section.History -> {
+                    HistoryList(state.transactions)
+                }
+                Section.Settings -> {
+                    SettingsView(onReset)
+                }
             }
+        }
 
-            Section.Watchlist -> {
-                WatchlistView(
-                    market = market,
-                    watchlist = state.watchlist,
-                    prices = state.prices,
-                    selectedSymbol = selectedSymbol,
-                    onSelect = onSelectSymbol,
-                    onRemove = { user.toggleWatchlist(it); sync() },
-                              modifier = Modifier.weight(1.6f),
-                )
-                Spacer(Modifier.height(8.dp))
-                TradePanel(
-                    selectedSymbol = selectedSymbol,
-                    prices = state.prices,
-                    market = market,
-                    quantityText = quantityText,
-                    onQuantityChange = onQuantityChange,
-                    message = message,
-                    messageIsError = messageIsError,
-                    onBuy = { handleTrade(true, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                           onSell = { handleTrade(false, user, market, selectedSymbol, quantityText, sync, onMessage) },
-                           modifier = Modifier.weight(1f).heightIn(min = 180.dp),
-                )
+        AnimatedVisibility(
+            visible = showSheet,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            val stock = stockList.find { it.symbol == selectedSymbol }
+            if (stock != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.7f))
+                        .clickable { showSheet = false }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+                            .background(Surface2)
+                            .padding(24.dp)
+                            .clickable(enabled = false) {}
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Trade", color = Text1, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Text2,
+                                modifier = Modifier.clickable { showSheet = false }
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        StockDetailCard(
+                            stock          = stock,
+                            currentPrice   = state.prices[stock.symbol] ?: stock.price,
+                            portfolioCount = state.portfolio[stock.symbol] ?: 0,
+                            avgPrice       = state.avgPrices[stock.symbol] ?: 0.0,
+                            quantityText   = quantityText,
+                            onQuantityChange = onQuantityChange,
+                            message        = message,
+                            messageIsError = messageIsError,
+                            onBuy          = { qty ->
+                                if (!isPreview) {
+                                    if (user.buyStock(stock, qty)) {
+                                        onMessage("Bought $qty ${stock.symbol}", false)
+                                        sync()
+                                    } else {
+                                        onMessage("Insufficient funds", true)
+                                    }
+                                }
+                            },
+                            onSell         = { qty ->
+                                if (!isPreview) {
+                                    if (user.sellStock(stock, qty)) {
+                                        onMessage("Sold $qty ${stock.symbol}", false)
+                                        sync()
+                                    } else {
+                                        onMessage("Not enough shares", true)
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
             }
-
-            Section.History -> TransactionHistory(
-                transactions = state.transactions,
-                prices = state.prices,
-                modifier = Modifier.weight(1f),
-            )
-
-            Section.Settings -> SettingsView(onReset = onReset, modifier = Modifier.weight(1f))
         }
     }
 }
-private fun handleTrade(
-    isBuy: Boolean,
-    user: User,
-    market: Market,
-    selectedSymbol: String,
-    quantityText: String,
-    sync: () -> Unit,
-    onMessage: (String, Boolean) -> Unit,
-) {
-    val qty = quantityText.toIntOrNull()
-    if (selectedSymbol.isBlank()) {
-        onMessage("Select a stock first.", true)
-        return
-    }
-    if (qty == null || qty <= 0) {
-        onMessage("Enter a valid quantity.", true)
-        return
-    }
-    val stock = market.getStock(selectedSymbol)
-    if (stock == null) {
-        onMessage("Stock not found.", true)
-        return
-    }
 
-    val ok = if (isBuy) user.buyStock(stock, qty) else user.sellStock(stock, qty)
-    if (ok) {
-        onMessage(
-            if (isBuy) "Bought $qty ${stock.symbol}." else "Sold $qty ${stock.symbol}.",
-            false,
-        )
-        sync()
-    } else {
-        onMessage(
-            if (isBuy) "Not enough cash." else "Not enough shares.",
-            true,
-        )
-    }
-}
-
-@Composable
-private fun TopTabs(currentSection: Section, onSectionChange: (Section) -> Unit) {
-    TabRow(selectedTabIndex = currentSection.ordinal, backgroundColor = Surface2, contentColor = Text1) {
-        Section.entries.forEachIndexed { index, section ->
-            Tab(
-                selected = currentSection == section,
-                onClick = { onSectionChange(section) },
-                text = { Text(section.name.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
-            )
-        }
-    }
-}
-
+// ── Components ──────────────────────────────────────────────────────────────
 @Composable
 private fun HeaderBar(balance: Double, netWorth: Double, pnl: Double) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StatPill("Balance", "\$${formatMoney(balance)}", Accent, Modifier.weight(1f))
-        StatPill("Net Worth", "\$${formatMoney(netWorth)}", Good, Modifier.weight(1f))
-        StatPill(
-            "P&L",
-            if (pnl >= 0) "+\$${formatMoney(pnl)}" else "-\$${formatMoney(kotlin.math.abs(pnl))}",
-            if (pnl >= 0) Good else Bad,
-            Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun StatPill(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface2)
-            .padding(14.dp),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.horizontalGradient(listOf(Surface2, Surface2.copy(alpha = 0.7f))))
+            .padding(20.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = Text2, fontSize = 10.sp)
-        Spacer(Modifier.height(4.dp))
-        Text(value, color = accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Column {
+            Text("Cash Balance", color = Text2, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(formatMoney(balance), color = Text1, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text("Net Worth", color = Text2, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(formatMoney(netWorth), color = Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (pnl >= 0) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                    contentDescription = null,
+                    tint = if (pnl >= 0) Good else Bad,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = formatSignedMoney(pnl),
+                    color = if (pnl >= 0) Good else Bad,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun SectorFilter(sectors: List<String>, selected: String, onChange: (String) -> Unit) {
-    val items = remember(sectors) { listOf("All") + sectors }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        items.forEach { sector ->
-            val active = selected == sector
-            TextButton(
-                onClick = { onChange(sector) },
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (active) Accent.copy(alpha = 0.2f) else Surface2),
+private fun TopTabs(current: Section, onSelect: (Section) -> Unit) {
+    TabRow(
+        selectedTabIndex = current.ordinal,
+        backgroundColor = Color.Transparent,
+        contentColor = Accent,
+        divider = {},
+        indicator = {}
+    ) {
+        Section.values().forEach { section ->
+            val selected = current == section
+            Tab(
+                selected = selected,
+                onClick = { onSelect(section) },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            section.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = if (selected) Accent else Text2
+                        )
+                        Text(
+                            section.name,
+                            fontSize = 10.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selected) Accent else Text2
+                        )
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectorFilter(sectors: List<String>, selected: String, onSelect: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        val list = listOf("All") + sectors
+        list.forEach { s ->
+            val isSel = s == selected
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isSel) Accent else Surface2)
+                    .clickable { onSelect(s) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(sector, color = if (active) Accent else Text1, fontSize = 10.sp)
+                Text(s, color = if (isSel) Background else Text1, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -496,330 +651,314 @@ private fun SectorFilter(sectors: List<String>, selected: String, onChange: (Str
 
 @Composable
 private fun MarketList(
-    stocks: List<Stock>,
-    prices: Map<String, Double>,
-    selectedSymbol: String,
-    watchlist: List<String>,
-    onSelect: (String) -> Unit,
-    onToggleWatch: (String) -> Unit,
-    modifier: Modifier = Modifier,
+    stocks            : List<Stock>,
+    prices            : Map<String, Double>,
+    selectedSymbol    : String,
+    watchlist         : List<String>,
+    onSelect          : (String) -> Unit,
+    onWatchlistToggle : (String) -> Unit,
 ) {
-    Panel(modifier = modifier, title = "Market") {
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            Text("STOCK", color = Text2, fontSize = 10.sp, modifier = Modifier.weight(2f))
-            Text("PRICE", color = Text2, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-            Text("CHANGE", color = Text2, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-            Spacer(Modifier.width(36.dp))
-        }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(stocks) { stock ->
+            val price = prices[stock.symbol] ?: stock.price
+            val isSelected = stock.symbol == selectedSymbol
+            val inWatchlist = stock.symbol in watchlist
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(stocks, key = { it.symbol }) { stock ->
-                val price = prices[stock.symbol] ?: stock.price
-                val up = stock.changePercent >= 0
-                val watched = stock.symbol in watchlist
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (isSelected) Surface2 else Surface2.copy(alpha = 0.3f))
+                    .clickable { onSelect(stock.symbol) }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(sectorsColor[stock.sector]?.copy(alpha = 0.2f) ?: Border),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stock.symbol.take(1),
+                        color = sectorsColor[stock.sector] ?: Text1,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp
+                    )
+                }
+
+                Spacer(Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stock.symbol, color = Text1, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(stock.name, color = Text2, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(formatMoney(price), color = Text1, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    Icon(
+                        if (inWatchlist) Icons.Default.Star else Icons.Default.Star,
+                        contentDescription = "Watchlist",
+                        tint = if (inWatchlist) Color(0xFFFCD34D) else Text2.copy(alpha = 0.3f),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clickable { onWatchlistToggle(stock.symbol) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PortfolioView(
+    stockList: List<Stock>,
+    state: UiState,
+    onSelect: (String) -> Unit
+) {
+    val myStocks = stockList.filter { state.portfolio.containsKey(it.symbol) }
+
+    if (myStocks.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.ShowChart, contentDescription = null, tint = Text2, modifier = Modifier.size(64.dp))
+                Spacer(Modifier.height(16.dp))
+                Text("Your portfolio is empty", color = Text2, fontSize = 16.sp)
+                Text("Start trading to see your assets", color = Text2.copy(alpha = 0.7f), fontSize = 12.sp)
+            }
+        }
+    } else {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(myStocks) { stock ->
+                val qty = state.portfolio[stock.symbol] ?: 0
+                val avg = state.avgPrices[stock.symbol] ?: 0.0
+                val curr = state.prices[stock.symbol] ?: stock.price
+                val pnl = (curr - avg) * qty
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (selectedSymbol == stock.symbol) Surface2 else Color.Transparent)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Surface2)
                         .clickable { onSelect(stock.symbol) }
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val chipColor = sectorsColor[stock.sector] ?: Accent
-                    Box(
-                        modifier = Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(chipColor.copy(alpha = 0.16f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(stock.symbol.take(2), color = chipColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stock.symbol, color = Text1, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("$qty Shares", color = Text2, fontSize = 12.sp)
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(2f)) {
-                        Text(stock.symbol, color = Text1, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        Text(stock.name, color = Text2, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Text("\$${formatMoney(price)}", color = Text1, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                    Text(
-                        formatPercent(stock.changePercent),
-                        color = if (up) Good else Bad,
-                        fontSize = 11.sp,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.End,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { onToggleWatch(stock.symbol) }) {
-                        Text(if (watched) "★" else "☆", color = if (watched) Accent else Text2)
-                    }
-                }
-                Divider(color = Border, thickness = 0.5.dp)
-            }
-        }
-    }
-}
 
-@Composable
-private fun WatchlistView(
-    market: Market,
-    watchlist: List<String>,
-    prices: Map<String, Double>,
-    selectedSymbol: String,
-    onSelect: (String) -> Unit,
-    onRemove: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Panel(modifier = modifier, title = "Watchlist") {
-        if (watchlist.isEmpty()) {
-            EmptyState("No stocks watched", "Tap ★ on any stock to add it.")
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(watchlist, key = { it }) { symbol ->
-                    val stock = market.getStock(symbol) ?: return@items
-                    val price = prices[symbol] ?: stock.price
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (selectedSymbol == symbol) Surface2 else Color.Transparent)
-                            .clickable { onSelect(symbol) }
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stock.symbol, color = Text1, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text(stock.name, color = Text2, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text("\$${formatMoney(price)}", color = Text1, fontSize = 12.sp)
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = { onRemove(symbol) }) { Text("Remove", color = Bad, fontSize = 10.sp) }
-                    }
-                    Divider(color = Border, thickness = 0.5.dp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TradePanel(
-    selectedSymbol: String,
-    prices: Map<String, Double>,
-    market: Market,
-    quantityText: String,
-    onQuantityChange: (String) -> Unit,
-    message: String,
-    messageIsError: Boolean,
-    onBuy: () -> Unit,
-    onSell: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Panel(modifier = modifier, title = "Trade") {
-        if (selectedSymbol.isBlank()) {
-            EmptyState("Select a stock to trade", "Choose a symbol from the market or watchlist.")
-        } else {
-            val stock = market.getStock(selectedSymbol)
-            if (stock != null) {
-                val price = prices[selectedSymbol] ?: stock.price
-                val chipColor = sectorsColor[stock.sector] ?: Accent
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(chipColor.copy(alpha = 0.16f)),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(stock.symbol.take(2), color = chipColor, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(stock.symbol, color = Text1, fontWeight = FontWeight.SemiBold)
-                        Text("\$${formatMoney(price)}", color = Good, fontSize = 12.sp)
-                    }
-                    Spacer(Modifier.weight(1f))
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("H: \$${formatMoney(stock.dayHigh)}", color = Good, fontSize = 9.sp)
-                        Text("L: \$${formatMoney(stock.dayLow)}", color = Bad, fontSize = 9.sp)
+                        Text(formatMoney(curr * qty), color = Text1, fontWeight = FontWeight.Bold)
+                        Text(
+                            formatSignedMoney(pnl),
+                            color = if (pnl >= 0) Good else Bad,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
-
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = quantityText,
-                    onValueChange = { v ->
-                        if (v.isEmpty() || v.all { it.isDigit() }) {
-                            onQuantityChange(v)
-                        }
-                    },
-                    label = { Text("Quantity") },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Text1,
-                        cursorColor = Accent,
-                        focusedBorderColor = Accent,
-                        unfocusedBorderColor = Border,
-                        focusedLabelColor = Accent,
-                        unfocusedLabelColor = Text2,
-                    ),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(10.dp))
-                val qty = quantityText.toIntOrNull() ?: 0
-                val estCost = qty * price
-                Text("Estimated: \$${formatMoney(estCost)}", color = Text2, fontSize = 10.sp)
-                Spacer(Modifier.height(10.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(
-                        onClick = onBuy,
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Good),
-                        modifier = Modifier.weight(1f),
-                    ) { Text("BUY", color = Color.Black, fontWeight = FontWeight.Bold) }
-                    Button(
-                        onClick = onSell,
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Bad),
-                        modifier = Modifier.weight(1f),
-                    ) { Text("SELL", color = Color.Black, fontWeight = FontWeight.Bold) }
-                }
             }
-        }
-
-        if (message.isNotBlank()) {
-            Spacer(Modifier.height(10.dp))
-            Text(message, color = if (messageIsError) Bad else Good, fontSize = 11.sp)
         }
     }
 }
 
 @Composable
-private fun PortfolioPanel(
-    portfolio: Map<String, Int>,
-    avgPrices: Map<String, Double>,
-    prices: Map<String, Double>,
-    modifier: Modifier = Modifier,
+private fun StockDetailCard(
+    stock          : Stock,
+    currentPrice   : Double,
+    portfolioCount : Int,
+    avgPrice       : Double,
+    quantityText   : String,
+    onQuantityChange : (String) -> Unit,
+    message        : String,
+    messageIsError : Boolean,
+    onBuy          : (Int) -> Unit,
+    onSell         : (Int) -> Unit,
 ) {
-    Panel(modifier = modifier, title = "Holdings") {
-        if (portfolio.isEmpty()) {
-            EmptyState("No holdings yet", "Buy something and it will appear here.")
-            return@Panel
-        }
-
-        val totalValue = portfolio.entries.sumOf { (symbol, qty) -> (prices[symbol] ?: 0.0) * qty }
-        val totalCost = portfolio.entries.sumOf { (symbol, qty) -> (avgPrices[symbol] ?: 0.0) * qty }
-        val totalPnl = totalValue - totalCost
-        val up = totalPnl >= 0
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background((if (up) Good else Bad).copy(alpha = 0.12f))
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column {
-                Text("Total Value", color = Text2, fontSize = 9.sp)
-                Text("\$${formatMoney(totalValue)}", color = if (up) Good else Bad, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("Unrealized P&L", color = Text2, fontSize = 9.sp)
-                Text(formatSignedMoney(totalPnl), color = if (up) Good else Bad, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(portfolio.entries.toList(), key = { it.key }) { (symbol, qty) ->
-                val current = prices[symbol] ?: 0.0
-                val avg = avgPrices[symbol] ?: 0.0
-                val value = current * qty
-                val pnl = (current - avg) * qty
-                val pnlColor = if (pnl >= 0) Good else Bad
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(symbol, color = Text1, fontWeight = FontWeight.SemiBold)
-                        Text("$qty shares · Avg \$${formatMoney(avg)}", color = Text2, fontSize = 9.sp)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("\$${formatMoney(value)}", color = Text1)
-                        Text(formatSignedMoney(pnl), color = pnlColor, fontSize = 10.sp)
-                    }
-                }
-                Divider(color = Border, thickness = 0.5.dp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TransactionHistory(
-    transactions: List<Transaction>,
-    prices: Map<String, Double>,
-    modifier: Modifier = Modifier,
-) {
-    Panel(modifier = modifier, title = "History") {
-        if (transactions.isEmpty()) {
-            EmptyState("No transactions yet", "Your buys and sells will appear here.")
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(transactions.asReversed(), key = { it.timestamp }) { tx ->
-                    val up = tx.type == Transaction.Type.BUY
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text("${tx.type.name} ${tx.symbol} × ${tx.quantity}", color = Text1, fontWeight = FontWeight.SemiBold)
-                            Text("@ \$${formatMoney(tx.pricePerShare)}", color = Text2, fontSize = 9.sp)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(if (up) "- \$${formatMoney(tx.totalAmount)}" else "+ \$${formatMoney(tx.totalAmount)}", color = if (up) Bad else Good)
-                            Text(formatTime(tx.timestamp), color = Text2, fontSize = 9.sp)
-                        }
-                    }
-                    Divider(color = Border, thickness = 0.5.dp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsView(onReset: () -> Unit, modifier: Modifier = Modifier) {
-    Panel(modifier = modifier, title = "Settings") {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-            Text("Danger Zone", color = Bad, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "This clears your portfolio, watchlist, and trade history.\nBalance returns to \$1,000,000.",
-                 color = Text2,
-                 textAlign = TextAlign.Center,
-                 fontSize = 12.sp,
-            )
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onReset, colors = ButtonDefaults.buttonColors(backgroundColor = Bad)) {
-                Text("RESET ALL DATA", color = Color.Black, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Panel(modifier: Modifier = Modifier, title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Surface2)
-            .padding(14.dp),
+            .clip(RoundedCornerShape(20.dp))
+            .background(Surface2.copy(alpha = 0.5f))
+            .padding(20.dp)
     ) {
-        Text(title.uppercase(), color = Text1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
-        content()
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(stock.symbol, color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(8.dp))
+            Text(stock.sector, color = sectorsColor[stock.sector] ?: Text2, fontSize = 12.sp)
+        }
+        Text(stock.name, color = Text1, fontSize = 28.sp, fontWeight = FontWeight.Black)
+
+        Spacer(Modifier.height(24.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text("Market Price", color = Text2, fontSize = 12.sp)
+                Text(formatMoney(currentPrice), color = Text1, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            if (portfolioCount > 0) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Your Holdings", color = Text2, fontSize = 12.sp)
+                    Text("$portfolioCount Shares", color = Text1, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    val pnl = (currentPrice - avgPrice) * portfolioCount
+                    Text(formatSignedMoney(pnl), color = if (pnl >= 0) Good else Bad, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = quantityText,
+            onValueChange = { if (it.all { c -> c.isDigit() }) onQuantityChange(it) },
+            label = { Text("Quantity to trade", color = Text2) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = TextFieldDefaults.outlinedTextFieldColors(
+                textColor = Text1,
+                cursorColor = Accent,
+                focusedBorderColor = Accent,
+                unfocusedBorderColor = Border,
+                backgroundColor = Surface1.copy(alpha = 0.5f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            val qty = quantityText.toIntOrNull() ?: 0
+            Button(
+                onClick = { onBuy(qty) },
+                modifier = Modifier.weight(1f).height(56.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = Good),
+                shape = RoundedCornerShape(16.dp),
+                elevation = ButtonDefaults.elevation(defaultElevation = 0.dp),
+                enabled = qty > 0
+            ) {
+                Text("BUY", color = Color(0xFF064E3B), fontWeight = FontWeight.Black)
+            }
+            Button(
+                onClick = { onSell(qty) },
+                modifier = Modifier.weight(1f).height(56.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = Bad),
+                shape = RoundedCornerShape(16.dp),
+                elevation = ButtonDefaults.elevation(defaultElevation = 0.dp),
+                enabled = qty > 0 && portfolioCount >= qty
+            ) {
+                Text("SELL", color = Color(0xFF7F1D1D), fontWeight = FontWeight.Black)
+            }
+        }
+
+        if (message.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (messageIsError) Bad.copy(alpha = 0.1f) else Good.copy(alpha = 0.1f))
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    message,
+                    color = if (messageIsError) Bad else Good,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun EmptyState(title: String, subtitle: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("○", color = Text2, fontSize = 26.sp)
-        Spacer(Modifier.height(8.dp))
-        Text(title, color = Text1, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Text(subtitle, color = Text2, fontSize = 10.sp, textAlign = TextAlign.Center)
+private fun HistoryList(transactions: List<Transaction>) {
+    if (transactions.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No trade history", color = Text2)
+        }
+    } else {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(transactions.reversed()) { tx ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Surface2.copy(alpha = 0.5f))
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(if (tx.type == Transaction.Type.BUY) Good else Bad)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(tx.symbol, color = Text1, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Text(formatTime(tx.timestamp), color = Text2, fontSize = 11.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        val sign = if (tx.type == Transaction.Type.BUY) "-" else "+"
+                        val total = tx.quantity * tx.pricePerShare
+                        Text("$sign${formatMoney(total)}", color = Text1, fontWeight = FontWeight.Bold)
+                        Text("${tx.quantity} @ ${formatMoney(tx.pricePerShare)}", color = Text2, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun SettingsView(onReset: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Accent.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.TrendingUp, contentDescription = null, tint = Accent, modifier = Modifier.size(40.dp))
+        }
+        Spacer(Modifier.height(24.dp))
+        Text("StockFlow Pro", color = Text1, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Text("Next-Gen Trading Simulator", color = Text2, fontSize = 14.sp)
+        Spacer(Modifier.height(48.dp))
+        Button(
+            onClick = onReset,
+            colors = ButtonDefaults.buttonColors(backgroundColor = Color.Transparent),
+            elevation = ButtonDefaults.elevation(0.dp, 0.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(Bad.copy(alpha = 0.1f))
+        ) {
+            Text("Reset Account Data", color = Bad, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Preview
+@Composable
+fun PreviewAppMobile() {
+    StockFlowApp()
+}
+
+@Preview
+@Composable
+fun PreviewAppDesktop() {
+    StockFlowApp()
 }
