@@ -84,6 +84,13 @@ compose.desktop {
             targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Msi, TargetFormat.Exe)
             packageName = "StockFlow"
             packageVersion = "1.0.0"
+            
+            windows {
+                iconFile.set(project.file("src/desktopMain/resources/icon.png"))
+            }
+            linux {
+                iconFile.set(project.file("src/desktopMain/resources/icon.png"))
+            }
         }
     }
 }
