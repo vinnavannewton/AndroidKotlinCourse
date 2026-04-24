@@ -4,5 +4,6 @@
     <string name="activity_2">Activity 2</string>
     <string name="button_go_back">Go to</string>
     <string name="button_go_to_second_activity">Goto second activity</string>
+    <string name="button_go_to_first_activity">Goto first activity</string>
     <string name="textview" />
 </resources>

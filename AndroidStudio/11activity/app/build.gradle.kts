@@ -5,14 +5,12 @@ plugins {
 
 android {
     namespace = "com.example.a10activity"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.a10activity"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 30
         versionCode = 1
         versionName = "1.0"
 
