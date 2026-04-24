@@ -6,4 +6,8 @@
     </style>
 
     <style name="Theme._12Quiz" parent="Base.Theme._12Quiz" />
+    <style name="Theme._12Quiz.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
 </resources>
