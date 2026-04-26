@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">12Quiz</string>
+    <string name="welcome">welcome</string>
+    <string name="please_enter_your_name">Please enter your name</string>
+    <string name="name">Name</string>
+    <string name="start">Start</string>
+    <string name="quiz_app">Quiz App</string>
+    <string name="image_flag">Image Flag</string>
+    <string name="check">Check</string>
 </resources>

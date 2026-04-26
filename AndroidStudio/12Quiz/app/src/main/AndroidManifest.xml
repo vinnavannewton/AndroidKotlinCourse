@@ -12,9 +12,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme._12Quiz">
         <activity
+            android:name=".ui.QuestionsActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
-            android:exported="true">
-            android:theme="@style/Theme.QuizApp.NoActionBar">
+            android:exported="true"
+            android:theme="@style/Theme._12Quiz.NoActionBar"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
